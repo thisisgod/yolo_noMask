@@ -13,8 +13,10 @@ cap = cv2.VideoCapture(0)
 
 vid_writer = cv2.VideoWriter(outputFile,cv2.VideoWriter_fourcc('M','J','P','G'), 30, (round(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),round(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))))
 
+index = 0
+
 # Remove the bounding boxes with low confidence using non-maxima suppression
-def postprocess(frame, outs):
+def postprocess(frame, outs, index):
     frameHeight = frame.shape[0]
     frameWidth = frame.shape[1]
 
@@ -47,10 +49,10 @@ def postprocess(frame, outs):
     for i in indices:
         i = i[0]
         left, top, width, height = boxes[i]
-        drawPred(classIds[i], confidences[i], left, top, left+width, top+height)
+        drawPred(classIds[i], confidences[i], left, top, left+width, top+height, index)
 
 # Draw the predicted bounding box
-def drawPred(classId, conf, left, top, right, bottom):
+def drawPred(classId, conf, left, top, right, bottom, index):
     # Draw a bounding box.
     cv2.rectangle(frame, (left,top), (right,bottom), (0,0,255))
 
@@ -65,8 +67,12 @@ def drawPred(classId, conf, left, top, right, bottom):
     labelSize, baseLine = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
     top = max(top, labelSize[1])
     cv2.putText(frame, label, (left, top), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255))
-
-index = 0
+    
+    if classes:
+        assert(classId < len(classes))
+        outputFile = "img/yolo_python_" + str(index)+".jpg"
+        print(outputFile)
+        cv2.imwrite(outputFile,frame.astype(np.uint8))
 
 while True:
 
@@ -97,7 +103,8 @@ while True:
     outs = net.forward(outputlayers)
 
     # Remove the bounding boxes with low confidence
-    postprocess(frame, outs)
+    postprocess(frame, outs, index)
+    index+=1
 
     # Put efficiency information. The function get PerfProfile returns the
     # overall time for inference(t) and the timings for each of the layers(in layersTimes)
@@ -108,10 +115,10 @@ while True:
     # Write the frame with the detection boxes
     vid_writer.write(frame.astype(np.uint8))
 
-    outputFile = "img/yolo_python_" + str(index)+".jpg"
-    index+=1
-    print(outputFile)
-    cv2.imwrite(outputFile,frame.astype(np.uint8))
+    # outputFile = "img/yolo_python_" + str(index)+".jpg"
+    # index+=1
+    # print(outputFile)
+    # cv2.imwrite(outputFile,frame.astype(np.uint8))
 
 cap.release()
 cv2.destroyAllWindows()
@@ -132,7 +139,7 @@ firebase_admin.initialize_app(cred, {'storageBucket': 'push-app-no-mask.appspot.
 fileName = "img/yolo_python_0.jpg"
 bucket = storage.bucket()
 blob = bucket.blob(fileName)
-blob.upload_from_filename(fileName)
+blob.upload_from_filename(fileName, content_type='image/jpeg')
 
 # Opt : if you want to make public access from the URL
 blob.make_public()
