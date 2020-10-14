@@ -1,5 +1,12 @@
 import cv2
 import numpy as np
+import firebase_admin
+from firebase_admin import credentials, initialize_app, storage
+from uuid import uuid4
+
+# Init firebase with your credentials
+cred = credentials.Certificate("key/push-app-no-mask-firebase-adminsdk-g0sa7-ca7092f84e.json")
+firebase_admin.initialize_app(cred, {'storageBucket': 'push-app-no-mask.appspot.com'})
 
 #Load YOLO
 net = cv2.dnn.readNet("yolov3_15000.weights","yolov3.cfg")
@@ -70,9 +77,28 @@ def drawPred(classId, conf, left, top, right, bottom, index):
     
     if classes:
         assert(classId < len(classes))
-        outputFile = "img/yolo_python_" + str(index)+".jpg"
+        outputFile = "img/yoloPython" + str(index)+".jpg"
         print(outputFile)
         cv2.imwrite(outputFile,frame.astype(np.uint8))
+        # Put your local file path
+        bucket = storage.bucket()
+        blob = bucket.blob(outputFile)
+
+        # Create new token
+        new_token = uuid4()
+
+        # Create new dictionary with the metadata
+        metadata = {"firebaseStorageDownloadTokens": new_token}
+
+        # Set metadata to blob
+        blob.metadata = metadata
+
+        blob.upload_from_filename(outputFile, content_type='image/jpeg')
+
+        # Opt : if you want to make public access from the URL
+        blob.make_public()
+
+        print("yout file url", blob.public_url)
 
 while True:
 
@@ -128,20 +154,31 @@ cv2.destroyAllWindows()
 # START FIREBASE ###############################################################################
 ################################################################################################
 
-import firebase_admin
-from firebase_admin import credentials, initialize_app, storage
+# import firebase_admin
+# from firebase_admin import credentials, initialize_app, storage
+# from uuid import uuid4
 
-# Init firebase with your credentials
-cred = credentials.Certificate("key/push-app-no-mask-firebase-adminsdk-g0sa7-ca7092f84e.json")
-firebase_admin.initialize_app(cred, {'storageBucket': 'push-app-no-mask.appspot.com'})
+# # Init firebase with your credentials
+# cred = credentials.Certificate("key/push-app-no-mask-firebase-adminsdk-g0sa7-ca7092f84e.json")
+# firebase_admin.initialize_app(cred, {'storageBucket': 'push-app-no-mask.appspot.com'})
 
-# Put your local file path
-fileName = "img/yolo_python_0.jpg"
-bucket = storage.bucket()
-blob = bucket.blob(fileName)
-blob.upload_from_filename(fileName, content_type='image/jpeg')
+# # Put your local file path
+# fileName = "img/eunha2.jpeg"
+# bucket = storage.bucket()
+# blob = bucket.blob(fileName)
 
-# Opt : if you want to make public access from the URL
-blob.make_public()
+# # Create new token
+# new_token = uuid4()
 
-print("yout file url", blob.public_url)
+# # Create new dictionary with the metadata
+# metadata = {"firebaseStorageDownloadTokens": new_token}
+
+# # Set metadata to blob
+# blob.metadata = metadata
+
+# blob.upload_from_filename(fileName, content_type='image/jpeg')
+
+# # Opt : if you want to make public access from the URL
+# blob.make_public()
+
+# print("yout file url", blob.public_url)
