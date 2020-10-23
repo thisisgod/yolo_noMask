@@ -3,6 +3,7 @@ import numpy as np
 import firebase_admin
 from firebase_admin import credentials, initialize_app, storage
 from uuid import uuid4
+import os
 
 # Init firebase with your credentials
 cred = credentials.Certificate("key/push-app-no-mask-firebase-adminsdk-g0sa7-ca7092f84e.json")
@@ -20,10 +21,12 @@ cap = cv2.VideoCapture(0)
 
 vid_writer = cv2.VideoWriter(outputFile,cv2.VideoWriter_fourcc('M','J','P','G'), 30, (round(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),round(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))))
 
-index = 0
+global index
+index=0
+
 
 # Remove the bounding boxes with low confidence using non-maxima suppression
-def postprocess(frame, outs, index):
+def postprocess(frame, outs):
     frameHeight = frame.shape[0]
     frameWidth = frame.shape[1]
 
@@ -56,10 +59,11 @@ def postprocess(frame, outs, index):
     for i in indices:
         i = i[0]
         left, top, width, height = boxes[i]
-        drawPred(classIds[i], confidences[i], left, top, left+width, top+height, index)
+        drawPred(classIds[i], confidences[i], left, top, left+width, top+height)
+        
 
 # Draw the predicted bounding box
-def drawPred(classId, conf, left, top, right, bottom, index):
+def drawPred(classId, conf, left, top, right, bottom):
     # Draw a bounding box.
     cv2.rectangle(frame, (left,top), (right,bottom), (0,0,255))
 
@@ -76,35 +80,50 @@ def drawPred(classId, conf, left, top, right, bottom, index):
     cv2.putText(frame, label, (left, top), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255))
     
     if classes:
-        assert(classId < len(classes))
+        if classId >= len(classes):
+            print("no-detecting")
+
         outputFile = "img/yoloPython" + str(index)+".jpg"
         print(outputFile)
         cv2.imwrite(outputFile,frame.astype(np.uint8))
-        # Put your local file path
-        bucket = storage.bucket()
-        blob = bucket.blob(outputFile)
+        
+        print(classId)
+        if classId == 0:
+            print("mask")
+            # push_firebase(outputFile)
+        if classId == 1:
+            print("no-mask")
+        return
+    
+def push_firebase(outputFile):
+    # Put your local file path
+    bucket = storage.bucket()
+    blob = bucket.blob(outputFile)
 
-        # Create new token
-        new_token = uuid4()
+    # Create new token
+    new_token = uuid4()
 
-        # Create new dictionary with the metadata
-        metadata = {"firebaseStorageDownloadTokens": new_token}
+    # Create new dictionary with the metadata
+    metadata = {"firebaseStorageDownloadTokens": new_token}
 
-        # Set metadata to blob
-        blob.metadata = metadata
+    # Set metadata to blob
+    blob.metadata = metadata
 
-        blob.upload_from_filename(outputFile, content_type='image/jpeg')
+    blob.upload_from_filename(outputFile, content_type='image/jpeg')
 
-        # Opt : if you want to make public access from the URL
-        blob.make_public()
+    # Opt : if you want to make public access from the URL
+    # blob.make_public()
 
-        print("yout file url", blob.public_url)
+    print("your file url", blob.public_url)
+
+    # result = os.popen('php android_push.php no-mask').read().strip()
+    # print(result)
+
 
 while True:
 
     # get frame from the video
     hasFrame, frame = cap.read()
-    
     # Stop the program if reached end of video
     if not hasFrame:
         print("Done processing !!!")
@@ -129,7 +148,7 @@ while True:
     outs = net.forward(outputlayers)
 
     # Remove the bounding boxes with low confidence
-    postprocess(frame, outs, index)
+    postprocess(frame, outs)
     index+=1
 
     # Put efficiency information. The function get PerfProfile returns the
