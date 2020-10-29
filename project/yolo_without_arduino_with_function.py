@@ -2,12 +2,17 @@ import cv2
 import numpy as np
 import firebase_admin
 from firebase_admin import credentials, initialize_app, storage
+from firebase_admin import db
 from uuid import uuid4
 import os
+import time
 
 # Init firebase with your credentials
 cred = credentials.Certificate("key/push-app-no-mask-firebase-adminsdk-g0sa7-ca7092f84e.json")
-firebase_admin.initialize_app(cred, {'storageBucket': 'push-app-no-mask.appspot.com'})
+firebase_admin.initialize_app(cred, {
+    'storageBucket': 'push-app-no-mask.appspot.com',
+    'databaseURL' : 'https://push-app-no-mask.firebaseio.com/'
+})
 
 #Load YOLO
 net = cv2.dnn.readNet("yolov3_15000.weights","yolov3.cfg")
@@ -22,7 +27,12 @@ cap = cv2.VideoCapture(0)
 vid_writer = cv2.VideoWriter(outputFile,cv2.VideoWriter_fourcc('M','J','P','G'), 30, (round(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),round(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))))
 
 global index
-index=0
+r = open('index.txt',mode='rt', encoding='utf-8')
+index = int(r.read())
+r.close()
+
+global location
+location = "공대5호관 카페"
             
 def push_firebase(outputFile):
     # Put your local file path
@@ -45,8 +55,22 @@ def push_firebase(outputFile):
 
     print("your file url", blob.public_url)
 
-    # result = os.popen('php android_push.php no-mask').read().strip()
-    # print(result)
+    # Push fcm
+    #result = os.popen('php android_push.php no-mask').read().strip()
+    #print(result)
+
+    # Init Firebase Realtime Database
+    ref = db.reference()
+
+    # Push realtime database
+    print(index)
+    ref.update({ index : {
+            'date' : time.strftime('%Y%m%d%a', time.localtime(time.time())),
+            'image' : outputFile,
+            'location': location,
+            'time' : time.strftime('%H%M%S',time.localtime(time.time()))
+        }
+    })
 
 
 while True:
@@ -163,6 +187,10 @@ while True:
     # print(outputFile)
     # cv2.imwrite(outputFile,frame.astype(np.uint8))
 
+
+f = open('index.txt', mode='wt', encoding='utf-8')
+f.write(str(index))
+f.close()
 cap.release()
 cv2.destroyAllWindows()
 
